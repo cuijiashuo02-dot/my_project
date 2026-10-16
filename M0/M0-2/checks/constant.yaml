@@ -1,0 +1,4 @@
+columns:
+  x: x
+  y: y
+input_csv: constant.csv
