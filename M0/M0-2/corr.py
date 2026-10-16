@@ -1,52 +1,75 @@
-import yaml
+"""读取配置和数据，计算 Pearson 相关系数。"""
+
 import csv
 import math
+from pathlib import Path
 
-CONFIG_PATH = "config.yaml"
+import yaml
 
-with open(CONFIG_PATH) as f:
-    cfg = yaml.safe_load(f)
 
-csv_path = cfg["input_csv"]
-col_x = cfg["columns"]["x"]
-col_y = cfg["columns"]["y"]
+def load_config(config_path):
+    """读取 YAML 配置，返回字典。"""
+    with open(config_path, encoding="utf-8-sig") as file:
+        return yaml.safe_load(file)
 
-xs = []
-ys = []
 
-with open(csv_path) as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        xs.append(float(row[col_x]))
-        ys.append(float(row[col_y]))
+def read_columns(csv_path, col_x, col_y):
+    """读取指定的两列，返回两个数值列表。"""
+    xs = []
+    ys = []
 
-n = len(xs)
+    with open(csv_path, encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file)
 
-sum_x = 0.0
-sum_y = 0.0
-for i in range(n):
-    sum_x = sum_x + xs[i]
-    sum_y = sum_y + ys[i]
+        for row in reader:
+            xs.append(float(row[col_x]))
+            ys.append(float(row[col_y]))
 
-mean_x = sum_x / n
-mean_y = sum_y / n
+    return xs, ys
 
-dx = 0.0
-dy = 0.0
-prod = 0.0
-for i in range(n):
-    a = xs[i] - mean_x
-    b = ys[i] - mean_y
-    dx = dx + a * a
-    dy = dy + b * b
-    prod = prod + a * b
 
-#denom = dx * dy
-#r = prod / denom
-denom = math.sqrt(dx*dy)
-r = prod / denom
+def pearson_correlation(xs, ys):
+    """手写 Pearson 相关系数的计算公式。"""
+    n = len(xs)
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
 
-print("n =", n)
-print("mean_x =", mean_x)
-print("mean_y =", mean_y)
-print("r =", r)
+    dx = 0.0
+    dy = 0.0
+    prod = 0.0
+
+    for x, y in zip(xs, ys):
+        a = x - mean_x
+        b = y - mean_y
+
+        dx += a * a
+        dy += b * b
+        prod += a * b
+
+    return prod / math.sqrt(dx * dy)
+
+
+def main():
+    """组织程序的执行顺序。"""
+    config_path = Path("config.yaml")
+    config = load_config(config_path)
+
+    csv_path = Path(config["input_csv"])
+
+    if not csv_path.is_absolute():
+        csv_path = config_path.parent / csv_path
+
+    col_x = config["columns"]["x"]
+    col_y = config["columns"]["y"]
+
+    xs, ys = read_columns(csv_path, col_x, col_y)
+    result = pearson_correlation(xs, ys)
+
+    print("n =", len(xs))
+    print("mean_x =", sum(xs) / len(xs))
+    print("mean_y =", sum(ys) / len(ys))
+    print("r =", result)
+
+
+if __name__ == "__main__":
+    main()
