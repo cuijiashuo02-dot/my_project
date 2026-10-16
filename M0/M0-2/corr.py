@@ -1,5 +1,5 @@
 """读取配置和数据，计算 Pearson 相关系数。"""
-
+import argparse
 import csv
 import math
 from pathlib import Path
@@ -50,8 +50,20 @@ def pearson_correlation(xs, ys):
 
 
 def main():
-    """组织程序的执行顺序。"""
-    config_path = Path("config.yaml")
+    """解析命令行参数，并组织程序的执行顺序。"""
+    parser = argparse.ArgumentParser(
+        description="计算 CSV 两列的 Pearson 相关系数"
+    )
+
+    parser.add_argument(
+        "--config",
+        default="config.yaml",
+        help="YAML 配置文件路径，默认 config.yaml",
+    )
+
+    args = parser.parse_args()
+
+    config_path = Path(args.config)
     config = load_config(config_path)
 
     csv_path = Path(config["input_csv"])
