@@ -17,7 +17,13 @@ sensor_analyzer.py  —— 上一届学长留下的"能用"的脚本
 """
 
 import csv
-import os
+import math
+import sys
+
+
+def fail(message):
+    print(f"错误：{message}", file=sys.stderr)
+    sys.exit(1)
 
 INPUT_FILE = "sensor_data.csv"
 OUTPUT_FILE = "cleaned_data.csv"
@@ -30,13 +36,41 @@ cleaned = []
 print("=== 传感器数据分析 ===")
 
 # --- 读取数据 ---
-reader = csv.DictReader(open(INPUT_FILE, "r"))
+# --- 读取数据 ---
+try:
+    with open(INPUT_FILE, "r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f, strict=True)
+        headers = reader.fieldnames
 
-for row in reader:
-    t = float(row["time"])
-    v = float(row["value"])
-    times.append(t)
-    data.append(v)
+        if headers is None:
+            fail("输入文件为空，缺少 time,value 表头。")
+
+        if "time" not in headers or "value" not in headers:
+            fail("CSV 必须包含 time 和 value 两列，请检查列名大小写。")
+
+        for row in reader:
+            line_number = reader.line_num
+
+            if None in row or any(item is None for item in row.values()):
+                fail(f"第 {line_number} 行的字段数量与表头不一致。")
+
+            try:
+                t = float(row["time"])
+                v = float(row["value"])
+            except (ValueError, TypeError):
+                fail(f"第 {line_number} 行的 time 或 value 不是有效数字。")
+
+            if not math.isfinite(t) or not math.isfinite(v):
+                fail(f"第 {line_number} 行包含 NaN 或无穷大。")
+
+            times.append(t)
+            data.append(v)
+
+except (OSError, UnicodeError, csv.Error) as exc:
+    fail(f"读取输入文件失败：{exc}")
+
+if not data:
+    fail("输入文件没有可分析的数据行。")
 
 print("共读取 %d 条数据" % len(data))
 
@@ -61,14 +95,19 @@ for t, v in zip(times, data):
 # --- 输出清洗后的数据 ---
 output_path = OUTPUT_FILE
 # --- 输出清洗后的数据 ---
+# --- 输出清洗后的数据 ---
 output_path = OUTPUT_FILE
 
-with open(output_path, "w", newline="", encoding="utf-8") as f:
-    writer = csv.writer(f)
-    writer.writerow(["time", "value"])
+try:
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["time", "value"])
 
-    for t, v in cleaned:
-        writer.writerow([t, v])
+        for t, v in cleaned:
+            writer.writerow([t, v])
+
+except (OSError, UnicodeError, csv.Error) as exc:
+    fail(f"写入输出文件失败：{exc}")
 
 print("均值 mean = %.4f" % mean)
 print("标准差 std = %.4f" % std)
