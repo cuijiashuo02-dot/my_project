@@ -15,7 +15,7 @@ sensor_analyzer.py  —— 上一届学长留下的"能用"的脚本
 
 现状：跑不通 / 跑出来数不对。就交给你了。
 """
-
+import argparse
 import csv
 import math
 import sys
@@ -25,9 +25,26 @@ def fail(message):
     print(f"错误：{message}", file=sys.stderr)
     sys.exit(1)
 
-INPUT_FILE = "sensor_data.csv"
-OUTPUT_FILE = "cleaned_data.csv"
-OUTPUT_DIR = "out"  # 输出目录
+parser = argparse.ArgumentParser(
+    description="读取传感器 CSV，按两倍总体标准差清洗数据。"
+)
+
+parser.add_argument(
+    "--input",
+    default="sensor_data.csv",
+    help="输入 CSV 路径，默认 sensor_data.csv",
+)
+
+parser.add_argument(
+    "--output",
+    default="cleaned_data.csv",
+    help="输出 CSV 路径，默认 cleaned_data.csv",
+)
+
+args = parser.parse_args()
+
+INPUT_FILE = args.input
+OUTPUT_FILE = args.output
 
 data = []
 times = []
