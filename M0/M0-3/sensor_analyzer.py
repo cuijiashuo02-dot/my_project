@@ -53,17 +53,22 @@ for v in data:
 std = (acc / len(data)) ** 0.5
 
 # --- 剔除离群值 ---
-for v in data:
-    if v > mean + 2 * std:
-        data.remove(v)
+# --- 剔除离群值，同时保留对应时间 ---
+for t, v in zip(times, data):
+    if abs(v - mean) <= 2 * std:
+        cleaned.append((t, v))
 
 # --- 输出清洗后的数据 ---
 output_path = OUTPUT_FILE
-f = open(output_path, "w")
-writer = csv.writer(f)
-writer.writerow(["time", "value"])
-for v in cleaned:
-    writer.writerow([v])
+# --- 输出清洗后的数据 ---
+output_path = OUTPUT_FILE
+
+with open(output_path, "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    writer.writerow(["time", "value"])
+
+    for t, v in cleaned:
+        writer.writerow([t, v])
 
 print("均值 mean = %.4f" % mean)
 print("标准差 std = %.4f" % std)
