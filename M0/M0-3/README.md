@@ -14,3 +14,10 @@
 - 修复：将 `row["Value"]` 改为 `row["value"]`。
 - 验证：重新运行后，原来的 KeyError 消失，程序能够读取 60 条数据。
 - 后续问题：程序在输出阶段报告 `/out/cleaned_data.csv` 路径不存在，尚待修复。
+## 问题 2：输出路径错误
+
+- 定位：原始脚本第 61 行，output_path 的构造。
+- 现象：写文件时报 FileNotFoundError，路径为 /out/cleaned_data.csv。
+- 原因：路径以 / 开头，指向系统根目录下的 out 文件夹；该目录不存在，而且不符合默认输出到当前工作目录的要求。
+- 修复：将 output_path 设置为 OUTPUT_FILE，使用相对路径。
+- 验证：重新运行后，当前目录生成 cleaned_data.csv，路径错误消失。但文件暂时只有表头，标准差与清洗逻辑仍需检查。

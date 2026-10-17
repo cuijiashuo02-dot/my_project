@@ -58,7 +58,7 @@ for v in data:
         data.remove(v)
 
 # --- 输出清洗后的数据 ---
-output_path = os.path.join("/", OUTPUT_DIR, OUTPUT_FILE)
+output_path = OUTPUT_FILE
 f = open(output_path, "w")
 writer = csv.writer(f)
 writer.writerow(["time", "value"])
