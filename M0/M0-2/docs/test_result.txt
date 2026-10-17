@@ -1,0 +1,17 @@
+test_error_inputs (test_corr.CommandLineTests) ... ok
+test_import_is_quiet (test_corr.CommandLineTests) ... ok
+test_success_from_other_directory (test_corr.CommandLineTests) ... ok
+test_verbose_false (test_corr.CommandLineTests) ... ok
+test_constant (test_corr.CorrelationTests) ... ok
+test_invalid_vectors (test_corr.CorrelationTests) ... ok
+test_large_and_small_scales (test_corr.CorrelationTests) ... ok
+test_negative (test_corr.CorrelationTests) ... ok
+test_numpy_agreement (test_corr.CorrelationTests) ... ok
+test_positive (test_corr.CorrelationTests) ... ok
+test_supplied_sample (test_corr.CorrelationTests) ... ok
+test_zero (test_corr.CorrelationTests) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 1.342s
+
+OK
