@@ -6,6 +6,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+import random
+import time
 
 import yaml
 
@@ -129,6 +131,91 @@ def topological_sort(tasks):
         pending = waiting
 
     return ordered
+class TaskScheduler:
+    """执行已经按依赖排好顺序的任务。"""
+
+    def __init__(self, tasks, seed=None):
+        self.tasks = tasks
+        self.rng = random.Random(seed)
+        self.results = {}
+        self.total_duration = 0.0
+
+    def log(self, status, name, message):
+        print(f"[{status}] {name}：{message}", flush=True)
+
+    def run(self):
+        run_start = time.monotonic()
+
+        self.results = {
+            task["name"]: {
+                "name": task["name"],
+                "status": "PENDING",
+                "attempts": 0,
+                "duration": 0.0,
+                "started_at": None,
+                "ended_at": None,
+            }
+            for task in self.tasks
+        }
+
+        for task in self.tasks:
+            name = task["name"]
+            record = self.results[name]
+
+            blocked = [
+                dep
+                for dep in task["dependencies"]
+                if self.results[dep]["status"] != "SUCCESS"
+            ]
+
+            if blocked:
+                record["status"] = "SKIPPED"
+                self.log(
+                    "SKIPPED",
+                    name,
+                    f"前置任务未成功：{', '.join(blocked)}",
+                )
+                continue
+
+            record["started_at"] = time.time()
+            task_start = time.monotonic()
+
+            for attempt in range(1, 4):
+                record["attempts"] = attempt
+
+                self.log(
+                    "RUNNING",
+                    name,
+                    f"第 {attempt}/3 次尝试，等待 {task['duration']} 秒",
+                )
+
+                time.sleep(task["duration"])
+
+                if self.rng.random() < task["success_rate"]:
+                    record["status"] = "SUCCESS"
+                    self.log(
+                        "SUCCESS",
+                        name,
+                        f"第 {attempt} 次尝试成功",
+                    )
+                    break
+
+                self.log(
+                    "FAILED",
+                    name,
+                    f"第 {attempt} 次尝试失败",
+                )
+
+                if attempt < 3:
+                    self.log("RETRY", name, "准备再次尝试")
+                else:
+                    record["status"] = "FAILED"
+
+            record["ended_at"] = time.time()
+            record["duration"] = time.monotonic() - task_start
+
+        self.total_duration = time.monotonic() - run_start
+        return self.results
 def main():
     parser = argparse.ArgumentParser(
         description="TaskScheduler：任务调度模拟器"
@@ -138,12 +225,23 @@ def main():
         required=True,
         help="任务配置路径，支持 JSON、YAML",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="随机种子，用于复现任务结果",
+    )
     args = parser.parse_args()
 
     try:
         config = load_config(args.config)
         validate_config(config)
         ordered_tasks = topological_sort(config["tasks"])
+
+        runner = TaskScheduler(ordered_tasks, seed=args.seed)
+
+        print("开始按依赖顺序执行任务。", flush=True)
+        results = runner.run()
 
     except (
         OSError,
@@ -153,26 +251,25 @@ def main():
         yaml.YAMLError,
         RecursionError,
     ) as exc:
-        print(f"错误：配置处理失败：{exc}", file=sys.stderr)
+        print(f"错误：任务处理失败：{exc}", file=sys.stderr)
         return 1
 
-    tasks = config["tasks"]
+    print("\n=== 最终结果 ===")
 
-    print(f"成功读取并校验 {len(tasks)} 个任务。")
-    print(f"配置超时：{config.get('timeout', 15)} 秒。")
-    print("拓扑排序结果（仅规划，尚未执行）：")
-
-    for index, task in enumerate(ordered_tasks, start=1):
+    for record in results.values():
         print(
-            f"{index}. {task['name']} | "
-            f"依赖={task['dependencies']}"
+            f"{record['name']} | "
+            f"状态={record['status']} | "
+            f"尝试={record['attempts']}次 | "
+            f"耗时={record['duration']:.3f}秒"
         )
 
-    return 0
+    print(f"调度总耗时：{runner.total_duration:.3f}秒")
 
+    if all(record["status"] == "SUCCESS" for record in results.values()):
+        return 0
 
-if __name__ == "__main__":
-    sys.exit(main())
+    return 1
 
 
 if __name__ == "__main__":
