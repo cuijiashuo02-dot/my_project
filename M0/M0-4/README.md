@@ -103,3 +103,92 @@ python3 -m unittest discover -s tests -p test_execution.py -v
 ```
 
 覆盖失败传播、独立任务继续执行、第三次成功和种子复现。
+## 参数
+
+| 参数 | 说明 |
+|---|---|
+| --config | 必填，支持 .json、.yaml、.yml |
+| --timeout | 可选，覆盖配置中的超时时间 |
+| --report | 可选，默认 report.json |
+| --seed | 可选，指定随机种子 |
+
+超时优先级：命令行参数、配置字段、默认 15 秒。
+
+## 三个运行示例
+
+### 正常成功
+
+```bash
+python3 scheduler.py --config tasks_demo.yaml --timeout 15 --report report.json --seed 7
+```
+
+### 观察失败、重试和依赖跳过
+
+```bash
+python3 scheduler.py --config tasks_demo.json --timeout 15 --report docs/failure_report.json --seed 42
+```
+
+### 验证全局超时
+
+```bash
+python3 scheduler.py --config tasks_demo.json --timeout 1 --report docs/timeout_report.json --seed 42
+```
+
+## 超时与报告约定
+
+- 所有任务和重试共用一个全局截止时间。
+- 等待时间不超过剩余预算，等待后再次检查超时。
+- 超时中断当前任务，并停止启动后续任务。
+- 已完成任务保留最终结果，剩余未处理任务记为 TIMEOUT。
+- 报告包含配置中的每个任务。
+- 未开始任务的 attempts 为 0、duration 为 0，时间戳为 null。
+- 任务 duration 包括该任务的全部尝试。
+- total_duration 从主函数开始计时到调度结束。
+- 终端日志使用颜色，重定向到文件时输出普通文字。
+
+## 退出码
+
+- 0：全部成功。
+- 1：任务未全部成功，或配置、文件处理错误。
+- 124：全局超时。
+
+## 测试
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+## 完成情况
+
+已实现配置加载与校验、拓扑排序、循环依赖检测、
+随机执行、最多三次尝试、依赖跳过、全局超时、
+终端彩色日志和 JSON 报告。
+
+程序采用顺序执行方式，支持依赖关系中的分叉和汇合。
+分叉表示多个任务可能具备执行条件，不表示并行运行。
+## 最终验证
+
+在 Conda 虚拟环境中完成验证，环境信息见：
+
+- docs/environment.txt
+
+完整测试命令：
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+测试记录见：
+
+- docs/final_test_result.txt
+
+验证覆盖三种配置扩展名、依赖排序、错误配置、
+失败重试、下游跳过、独立任务继续执行、种子复现、
+超时等待截断、报告结构和非终端日志输出。
+
+## 设计选择
+
+- 使用独立随机数生成器，便于固定种子重复调试。
+- 使用单调时钟计算耗时，使用真实时间戳记录开始和结束时间。
+- 所有任务和重试共享一个全局截止时间。
+- 先建立全部任务记录，确保跳过和超时任务不会从报告中遗漏。
+- 使用反复扫描的拓扑排序，便于理解，适合本题的小规模任务。

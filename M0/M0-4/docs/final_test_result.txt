@@ -1,0 +1,11 @@
+test_final_acceptance (test_acceptance.AcceptanceTests) ... ok
+test_failure_skip_and_independent_task (test_execution.ExecutionTests) ... ok
+test_seed_reproduces_status_and_attempts (test_execution.ExecutionTests) ... ok
+test_third_attempt_can_succeed (test_execution.ExecutionTests) ... ok
+test_report_and_plain_text_output (test_timeout_report.TimeoutReportTests) ... ok
+test_timeout_interrupts_wait_and_keeps_all_tasks (test_timeout_report.TimeoutReportTests) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.062s
+
+OK

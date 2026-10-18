@@ -1,0 +1,4 @@
+Python: 3.10.22 (main, Oct  1 2026, 20:14:04) [GCC 14.3.0]
+解释器: /home/frank/miniconda3/envs/python310/bin/python3
+系统: Linux-6.8.0-138-generic-x86_64-with-glibc2.35
+PyYAML: 6.0.3
