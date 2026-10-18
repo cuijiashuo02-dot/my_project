@@ -132,19 +132,50 @@ def topological_sort(tasks):
 
     return ordered
 class TaskScheduler:
-    """执行已经按依赖排好顺序的任务。"""
+    """执行已排序任务，支持重试、依赖跳过和全局超时。"""
 
-    def __init__(self, tasks, seed=None):
+    def __init__(self, tasks, seed=None, timeout=15.0):
+        if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("timeout 必须是大于 0 的有限数字。")
+
         self.tasks = tasks
         self.rng = random.Random(seed)
+        self.timeout = float(timeout)
         self.results = {}
         self.total_duration = 0.0
+        self.timed_out = False
 
     def log(self, status, name, message):
-        print(f"[{status}] {name}：{message}", flush=True)
+        colors = {
+            "SUCCESS": "\033[32m",
+            "FAILED": "\033[31m",
+            "RETRY": "\033[33m",
+            "SKIPPED": "\033[34m",
+            "TIMEOUT": "\033[31m",
+        }
 
-    def run(self):
-        run_start = time.monotonic()
+        line = f"[{status}] {name}：{message}"
+
+        if sys.stdout.isatty() and status in colors:
+            line = f"{colors[status]}{line}\033[0m"
+
+        print(line, flush=True)
+
+    def wait_for_attempt(self, duration):
+        """等待任务耗时，但不超过全局剩余时间。"""
+        remaining = self.deadline - time.monotonic()
+
+        if remaining <= 0:
+            return False
+
+        time.sleep(min(duration, remaining))
+
+        return time.monotonic() < self.deadline
+
+    def run(self, start_time=None):
+        run_start = time.monotonic() if start_time is None else start_time
+        self.deadline = run_start + self.timeout
+        self.timed_out = False
 
         self.results = {
             task["name"]: {
@@ -159,6 +190,10 @@ class TaskScheduler:
         }
 
         for task in self.tasks:
+            if time.monotonic() >= self.deadline:
+                self.timed_out = True
+                break
+
             name = task["name"]
             record = self.results[name]
 
@@ -181,15 +216,23 @@ class TaskScheduler:
             task_start = time.monotonic()
 
             for attempt in range(1, 4):
+                if time.monotonic() >= self.deadline:
+                    self.timed_out = True
+                    record["status"] = "TIMEOUT"
+                    break
+
                 record["attempts"] = attempt
 
                 self.log(
                     "RUNNING",
                     name,
-                    f"第 {attempt}/3 次尝试，等待 {task['duration']} 秒",
+                    f"第 {attempt}/3 次尝试，预计 {task['duration']} 秒",
                 )
 
-                time.sleep(task["duration"])
+                if not self.wait_for_attempt(task["duration"]):
+                    self.timed_out = True
+                    record["status"] = "TIMEOUT"
+                    break
 
                 if self.rng.random() < task["success_rate"]:
                     record["status"] = "SUCCESS"
@@ -214,9 +257,46 @@ class TaskScheduler:
             record["ended_at"] = time.time()
             record["duration"] = time.monotonic() - task_start
 
+            if self.timed_out:
+                break
+
+        if time.monotonic() >= self.deadline:
+            self.timed_out = True
+
+        if self.timed_out:
+            for record in self.results.values():
+                if record["status"] == "PENDING":
+                    record["status"] = "TIMEOUT"
+
+            self.log(
+                "TIMEOUT",
+                "TaskScheduler",
+                "达到全局时间限制，停止调度",
+            )
+
         self.total_duration = time.monotonic() - run_start
         return self.results
+
+    def build_report(self):
+        return {
+            "timeout": self.timed_out,
+            "total_duration": self.total_duration,
+            "tasks": list(self.results.values()),
+        }
+def write_report(report, report_path):
+    """将报告保存为 JSON 文件。"""
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(
+            report,
+            f,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        f.write("\n")
 def main():
+    program_start = time.monotonic()
+
     parser = argparse.ArgumentParser(
         description="TaskScheduler：任务调度模拟器"
     )
@@ -224,6 +304,17 @@ def main():
         "--config",
         required=True,
         help="任务配置路径，支持 JSON、YAML",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="全局超时秒数，覆盖配置中的 timeout",
+    )
+    parser.add_argument(
+        "--report",
+        default="report.json",
+        help="报告路径，默认 report.json",
     )
     parser.add_argument(
         "--seed",
@@ -234,14 +325,31 @@ def main():
     args = parser.parse_args()
 
     try:
+        if Path(args.config).resolve() == Path(args.report).resolve():
+            raise ValueError("报告路径不能与输入配置路径相同。")
+
         config = load_config(args.config)
+
+        if args.timeout is not None:
+            config["timeout"] = args.timeout
+
         validate_config(config)
         ordered_tasks = topological_sort(config["tasks"])
 
-        runner = TaskScheduler(ordered_tasks, seed=args.seed)
+        runner = TaskScheduler(
+            ordered_tasks,
+            seed=args.seed,
+            timeout=config.get("timeout", 15),
+        )
 
-        print("开始按依赖顺序执行任务。", flush=True)
-        results = runner.run()
+        print(
+            f"开始调度，全局时间限制：{runner.timeout} 秒。",
+            flush=True,
+        )
+
+        results = runner.run(start_time=program_start)
+        report = runner.build_report()
+        write_report(report, args.report)
 
     except (
         OSError,
@@ -264,7 +372,11 @@ def main():
             f"耗时={record['duration']:.3f}秒"
         )
 
-    print(f"调度总耗时：{runner.total_duration:.3f}秒")
+    print(f"总耗时：{runner.total_duration:.3f}秒")
+    print(f"报告已保存：{args.report}")
+
+    if runner.timed_out:
+        return 124
 
     if all(record["status"] == "SUCCESS" for record in results.values()):
         return 0
